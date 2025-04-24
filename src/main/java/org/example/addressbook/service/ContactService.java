@@ -1,57 +1,66 @@
 package org.example.addressbook.service;
+
 import org.example.addressbook.dto.ContactDTO;
 import org.example.addressbook.model.Contact;
+import org.example.addressbook.repository.ContactRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.*;
+import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
 public class ContactService {
-    private final Map<Integer, Contact> contactMap = new HashMap<>();
-    private int idCounter = 1;
+    @Autowired
+    ContactRepository contactRepository;
+
 
     public List<Contact> getAllContacts() {
-        log.debug("Retrieving all contacts - Total contacts: {}", contactMap.size());
-        return new ArrayList<>(contactMap.values());
+        log.debug("Retrieving all contacts");
+        return contactRepository.findAll();
     }
 
     public Contact getContactById(int id) {
-        Contact contact = contactMap.get(id);
-        if (contact != null) {
-            log.debug("Contact found with ID: {}", id);
-        } else {
-            log.warn("Attempt to retrieve non-existent contact with ID: {}", id);
-        }
-        return contact;
+        log.debug("Retrieving contact with ID: {}", id);
+        return contactRepository.findById(id)
+            .orElse(null);
     }
 
     public Contact addContact(ContactDTO dto) {
-        Contact contact = new Contact(idCounter++, dto.getName(), dto.getPhone());
-        contactMap.put(contact.getId(), contact);
-        log.info("Added new contact - ID: {}, Name: {}", contact.getId(), contact.getName());
-        return contact;
+        Contact contact = new Contact(dto);
+        
+        Contact savedContact = contactRepository.save(contact);
+        log.info("Added new contact: {}", savedContact);
+        return savedContact;
     }
 
     public Contact updateContact(int id, ContactDTO dto) {
-        if (!contactMap.containsKey(id)) {
-            log.error("Failed to update contact - Contact not found with ID: {}", id);
+        Optional<Contact> existingContact = contactRepository.findById(id);
+        
+        if (existingContact.isPresent()) {
+            Contact contactToUpdate = existingContact.get();
+            contactToUpdate.setName(dto.getName());
+            contactToUpdate.setPhone(dto.getPhone());
+            
+            Contact updatedContact = contactRepository.save(contactToUpdate);
+            log.info("Updated contact with ID: {}", id);
+            return updatedContact;
+        } else {
+            log.warn("Attempt to update non-existent contact with ID: {}", id);
             return null;
         }
-        Contact updated = new Contact(id, dto.getName(), dto.getPhone());
-        contactMap.put(id, updated);
-        log.info("Updated contact - ID: {}, New Name: {}", id, dto.getName());
-        return updated;
     }
 
     public boolean deleteContact(int id) {
-        boolean removed = contactMap.remove(id) != null;
-        if (removed) {
+        if (contactRepository.existsById(id)) {
+            contactRepository.deleteById(id);
             log.info("Deleted contact with ID: {}", id);
+            return true;
         } else {
             log.warn("Attempt to delete non-existent contact with ID: {}", id);
+            return false;
         }
-        return removed;
     }
 }
